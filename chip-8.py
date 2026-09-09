@@ -106,25 +106,28 @@ def DRW(x, y, n, buffer: list, display: list, regs: Registers):
     for byte_n in range(n):
         mask = 0b1000_0000
         for bit in range(8):
-            #x_cord = x_cord % app_pyglet.DISPLAY_WIDTH
-            #y_cord = y_cord % app_pyglet.DISPLAY_HEIGHT
+            x_cord = x_cord % app_pyglet.DISPLAY_WIDTH
+            y_cord = y_cord % app_pyglet.DISPLAY_HEIGHT
 
             line_copy = regs.ram[sprite_index + byte_n]
             is_bit_on = line_copy & mask
 
-            if is_bit_on > 0:
-                buffer.append((x_cord, y_cord))
-                if display[x_cord][y_cord]:
-                    regs.v[0xF] = 1
-                    display[x_cord][y_cord] = False
-                else:
-                    regs.v[0xF] = 0
-                    display[x_cord][y_cord] = True
+            draw_bit(is_bit_on, buffer, display, x_cord, y_cord, regs)
 
             mask = mask >> 1
             x_cord += 1
         x_cord -= 8
         y_cord += 1
+
+def draw_bit(is_bit_on, buffer, display, x_cord, y_cord, regs):
+    if is_bit_on > 0:
+        buffer.append((x_cord, y_cord))
+        if display[x_cord][y_cord]:
+            regs.v[0xF] = 1
+            display[x_cord][y_cord] = False
+        else:
+            regs.v[0xF] = 0
+            display[x_cord][y_cord] = True
 
 
 def CLS(display: list[bool]):
