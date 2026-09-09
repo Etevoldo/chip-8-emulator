@@ -2,6 +2,10 @@ import pyglet
 import ctypes
 import test
 
+#TODO After a loot of thinking make
+# this as a Window class inheriting window.Window
+# after all this is a common pattern and work pretty well
+
 pyglet.image.Texture.default_mag_filter = pyglet.gl.GL_NEAREST
 
 SCALE = 20
@@ -106,6 +110,12 @@ def update_pixels(image_data):
         else:
             byte_list[index] = WHITE_BYTE
 
+    image_data.set_bytes("L", DISPLAY_WIDTH, byte_list)
+
+def clear_screen():
+    byte_list = image_data.get_bytes()
+    for i in range(len(byte_list)):
+        byte_list[i] = 0
     image_data.set_bytes("L", DISPLAY_WIDTH, byte_list)
 
 i = 0
