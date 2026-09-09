@@ -73,6 +73,10 @@ def on_mouse_press(x, y, button, mods):
     print(f"mouse pressed on: ({x}, {y})")
     x = int(x // SCALE)
     y = int(y // SCALE)
+
+    # pyglet vertical axis starts on bottom converting to start on top
+    y = DISPLAY_HEIGHT - y - 1
+
     buffer.append((x, y))
 
 def on_key_press(symbol, modifiers):
@@ -91,6 +95,10 @@ def update_pixels(image_data):
     byte_list = image_data.get_bytes()
 
     for x, y in buffer:
+        # pyglet vertical axis starts on bottom,
+        # converting to start on top.
+        y = DISPLAY_HEIGHT - y - 1
+
         index =  x + y * DISPLAY_WIDTH
         #TODO remember to set one of the registers flag later
         if byte_list[index]:
@@ -128,7 +136,7 @@ def draw_grid():
             batch=batch
             )
         lines.append(line)
-    for i in range(DISPLAY_WIDTH):
+    for i in range(DISPLAY_HEIGHT):
         line = pyglet.shapes.Line(
             x = 0,
             y = i * SCALE + SCALE,
