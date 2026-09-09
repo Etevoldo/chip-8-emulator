@@ -11,20 +11,18 @@ BLACK_BYTE = 0
 WHITE_BYTE = 255
 # pseudo preprocessor definitions
 debug_grid = True
-DEBUG_REFRESH = True
+DEBUG_REFRESH = False
 
-display = None
 buffer = None
 window = None
 image_data = None
+batch = None
 
 def initialize():
     """initializes globals and returns (buffer, window)
     for further manipulation
     """
-    global display, buffer, window, image_data
-    # used to keep track which bits are on or OFF
-    display = [False] * (DISPLAY_WIDTH * DISPLAY_HEIGHT)
+    global buffer, window, image_data, batch
 
     # a touple list of x, y values
     # which represent fliped-on bits on the memory buffer
@@ -32,6 +30,7 @@ def initialize():
 
     window = pyglet.window.Window(
         width=DISPLAY_WIDTH * SCALE, height=DISPLAY_HEIGHT * SCALE)
+    batch = pyglet.graphics.Batch()
 
     image_data = pyglet.image.ImageData(
         DISPLAY_WIDTH,
@@ -46,7 +45,7 @@ def initialize():
         pyglet.clock.schedule_interval(
             debug_fill_display, 1/240, buffer)
 
-    return (buffer, display, window)
+    return (buffer, window)
 
 def attach_handlers(window):
     """joins all the handlers in their respective windows"""
@@ -56,16 +55,17 @@ def attach_handlers(window):
     window.on_key_release = on_key_release
 
 def on_draw():
-    global display, buffer, window, image_data
+    global buffer, window, image_data, batch
     window.clear()
     update_pixels(image_data)
     buffer.clear()
-    image_data.get_texture()
-    sprite = pyglet.sprite.Sprite(image_data)
+
+    sprite = pyglet.sprite.Sprite(image_data, batch=batch)
     sprite.scale = SCALE
-    sprite.draw()
+    lines = None
     if debug_grid:
-        draw_grid()
+        lines = draw_grid(batch)
+    batch.draw()
 
 def on_mouse_press(x, y, button, mods):
     """Debug only: puts on the buffer clicked location"""
@@ -121,9 +121,8 @@ def debug_fill_display(dt, buffer):
     buffer.append((i, j))
     i += 1
 
-def draw_grid():
+def draw_grid(batch):
     """draw grid for easier debugging the display"""
-    batch = pyglet.graphics.Batch()
     lines = []
     for i in range(DISPLAY_WIDTH):
         line = pyglet.shapes.Line(
@@ -147,8 +146,8 @@ def draw_grid():
             batch=batch
             )
         lines.append(line)
-    batch.draw()
-
+    # necessary to not be garbage-collected
+    return lines
 
 if __name__ == "__main__":
     print("wrong module")
