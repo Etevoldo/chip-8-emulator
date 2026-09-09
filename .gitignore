@@ -1,1 +1,4 @@
 __pycache__
+
+# chip-8 programs
+*.ch8
