@@ -2,3 +2,6 @@ __pycache__
 
 # chip-8 programs
 *.ch8
+
+#test file
+test.py
