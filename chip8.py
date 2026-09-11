@@ -1,7 +1,8 @@
 import ch8window
 import pyglet
+import font
+from random import random
 from ch8window import Chip8Window
-from font import get_font
 from dataclasses import dataclass 
 
 PROGRAM_COUNTER_START = 0x200
@@ -18,13 +19,13 @@ class Registers:
 
 def run():
     read_data = None
-    with open('./roms/1-chip8-logo.ch8', 'rb') as rom:
+    with open('./roms/5-quirks.ch8', 'rb') as rom:
         read_data = rom.read()
 
     ch8_display = Chip8Window()
     regs = init_registers()
 
-    get_font(regs.ram)
+    font.get_font(regs.ram)
 
     # load data in ram
     i = PROGRAM_COUNTER_START
@@ -34,44 +35,59 @@ def run():
 
     regs.pc = PROGRAM_COUNTER_START
 
-    def FDE(dt):
-        """Fetch, Decode, and Execute"""
-        nonlocal regs, ch8_display
 
-        # fetch
-        # combining bytes for a full 2-byte instruction
-        instruc = (regs.ram[regs.pc] << 0x8) + (regs.ram[regs.pc+1])
-
-        # debug
-        print(f"\n{instruc:04X}")
-
-        regs.pc += 2
-
-        # decode
-        decode(instruc, regs, ch8_display)
-
-    pyglet.clock.schedule_interval(FDE, 0.1)
+    pyglet.clock.schedule_interval(main_loop, 0.01, regs, ch8_display)
     pyglet.app.run()
+
+def main_loop(dt, regs: Registers, ch8_display: Chip8Window):
+    regs.delay_timer -= 1 if regs.delay_timer > 0 else 0
+    regs.sound_timer -= 1 if regs.sound_timer > 0 else 0
+    FDE(regs, ch8_display)
+
+
+def FDE(regs: Registers, ch8_display: Chip8Window):
+    """Fetch, Decode, and Execute"""
+    #nonlocal regs, ch8_display
+
+    # fetch
+    # combining bytes for a full 2-byte instruction
+    instruc = (regs.ram[regs.pc] << 0x8) + (regs.ram[regs.pc+1])
+
+    # debug
+    print(f"\n{instruc:04X}")
+
+    regs.pc += 2
+
+    # decode
+    decode(instruc, regs, ch8_display)
 
 def decode(instruc: int,
            regs: Registers,
            ch8_display: Chip8Window):
     (x, y, n, kk, nnn) = extract_nibbles(instruc)
+
     type = instruc & 0xF000
     # for 8VX_ instructions
     logical_type = instruc & 0x000F
+    # for E000 and F000
+    other_types = instruc & 0x00FF
 
     # ... and execute
     match type:
         case 0x0000:
-            print("CLS")
-            CLS(ch8_display)
+            if other_types == 0x00E0:
+                print("CLS")
+                CLS(ch8_display)
+            elif other_types == 0x00EE:
+                print("Return")
+                address = regs.stack.pop()
+                regs.pc = address
         case 0x1000:
             print("1nnn - JP addr")
             regs.pc = nnn
         case 0x2000:
             print("2nnn - CALL addr")
-            regs.stack.push(regs.pc)
+            regs.stack.append(regs.pc)
             regs.pc = nnn
         case 0x3000:
             if regs.v[x] == kk:
@@ -88,16 +104,72 @@ def decode(instruc: int,
         case 0x7000:
             print("7XKK - ADD Vx, byte")
             regs.v[x] += kk
+            regs.v[x] = regs.v[x] & 0x00FF
         case 0x8000:
-            logical_instructions(regs, logical_type, x, y)
+            op_8XYT(regs, logical_type, x, y)
+        case 0x9000:
+            print("SNE Vx, Vy")
+            if regs.v[x] != regs.v[y]:
+                regs.pc += 2
         case 0xA000:
             print("ANNN - LD I, addr")
             regs.index = nnn
+        case 0xB000:
+            regs.pc = regs.v[0x0] + nnn
+        case 0xC000:
+            regs.v[x] = kk & int(random() * 0xFFFF)
         case 0xD000:
+            # TODO implement "display wait" quirk
             print("DXYN - Vx, Vy, nibble")
             DRW(x, y, n, ch8_display, regs)
+        case 0xE000:
+            if other_types == 0x009E:
+                print("Ex9E")
+                key = regs.v[x] & 0x000F
+                regs.pc += 2 if ch8_display.keys_pressed[key] else 0
+            elif other_types == 0x00A1:
+                print("Ex9E")
+                key = regs.v[x] & 0x000F
+                regs.pc += 2 if not ch8_display.keys_pressed[key] else 0
+        case 0xF000:
+            op_FXTT(x, regs, other_types, ch8_display)
 
-def logical_instructions(regs, type, x, y):
+def op_FXTT(x, regs: Registers, types: int, ch8_display: Chip8Window):
+    match types:
+        case 0x0007:
+            regs.v[x] = regs.delay_timer
+        case 0x000A:
+            if ch8_display.last_key_released:
+                regs.v[x] = ch8_display.last_key_released
+            else:
+                regs.pc -= 2
+        case 0x0015:
+            regs.delay_timer = regs.v[x]
+        case 0x0018:
+            regs.sound_timer = regs.v[x]
+        case 0x001E:
+            regs.index += regs.v[x]
+        case 0x0029:
+            last_nibble = regs.v[x] & 0x000F
+            regs.index = regs.ram[font.FONT_START + last_nibble]
+        case 0x0033:
+            number = regs.v[x]
+            digits = []
+            for _ in range(3):
+                digits.append(number % 10)
+                number = number // 10
+
+            for j in range(3):
+                regs.ram[regs.index + j] = digits[2 - j]
+        case 0x0055:
+            for j in range(x+1):
+                regs.ram[regs.index + j] = regs.v[j]
+        case 0x0065:
+            for j in range(x+1):
+                regs.v[j] = regs.ram[regs.index + j]
+
+
+def op_8XYT(regs, type, x, y):
     v = regs.v
     match type:
         case 0x0000:
@@ -115,31 +187,49 @@ def logical_instructions(regs, type, x, y):
         case 0x0004:
             print("8xy4 - ADD Vx, Vy")
             x_plus_y = v[x] + v[y]
-            v[x] = x_plus_y & 0x00FF
+            if x_plus_y > 2**8 - 1:
+                v[x] = x_plus_y - 2**8
+            else:
+                v[x] = x_plus_y
 
             v[0xF] = 1 if x_plus_y > 0x00FF else 0
         case 0x0005:
             print("8xy5 - SUB Vx, Vy")
-            v[x] = v[x] - v[y]
-
-            v[0xF] = 1 if v[x] >= v[y] else 0
+            vx = v[x]
+            vy = v[y]
+            v[x] = vx - vy
+            if vx >= vy:
+                v[0xF] = 1
+            else:
+                # underflowing the result
+                v[x] += 2**8
+                v[0xF] = 0
         case 0x0006:
             print("SHR Vx {, Vy}")
             v[x] = v[y]
-            v[0xF] = 1 if (v[x] & 0b0000_0001) > 0 else 0
-            v[x] = v[x] >> 1
+            vx = v[x]
+            v[x] = (v[x] >> 1) & 0b1111_1111
+            v[0xF] = 1 if (vx & 0b0000_0001) > 0 else 0
         case 0x0007:
             print("SUBN Vx, Vy")
-            v[x] = v[x] - v[y]
+            vx = v[x]
+            vy = v[y]
+            v[x] = vy - vx
+            if vy >= vx:
+                v[0xF] = 1
+            else:
+                # underflowing the result
+                v[x] += 2**8
 
-            v[0xF] = 0 if v[x] >= v[y] else 1
+                v[0xF] = 0
         case 0x000E:
             print("SHL Vx {, Vy}")
             v[x] = v[y]
-            v[0xF] = 1 if (v[x] & 0b1000_0000) > 0 else 0
-            v[x] = v[x] << 1
+            vx = v[x]
+            # masking and setting the value to avoid values bigger than a byte
+            v[x] = (v[x] << 1) & 0b1111_1111
 
-
+            v[0xF] = 1 if (vx & 0b1000_0000) > 0 else 0
 
 
 def DRW(x, y, n, ch8_display, regs: Registers):
@@ -157,7 +247,7 @@ def DRW(x, y, n, ch8_display, regs: Registers):
 
     for byte_n in range(n):
         mask = 0b1000_0000
-        for bit in range(8):
+        for _ in range(8):
             # clip if cordinate is out of screen
             if x_cord > ch8window.DISPLAY_WIDTH:
                 continue
@@ -201,7 +291,7 @@ def extract_nibbles(instruc):
     nnn = (instruc & 0x0FFF)
     return (x, y, n, kk, nnn)
 
-RAM_LENGTH = 2048
+RAM_LENGTH = 4096
 V_REGISTERS_NUMBER = 16
 STACK_LENGTH = 16
 
