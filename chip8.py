@@ -1,5 +1,6 @@
-import app_pyglet
+import ch8window
 import pyglet
+from ch8window import Chip8Window
 from font import get_font
 from dataclasses import dataclass 
 
@@ -17,36 +18,25 @@ class Registers:
 
 def run():
     read_data = None
-    with open('IBM Logo.ch8', 'rb') as rom:
+    with open('./roms/1-chip8-logo.ch8', 'rb') as rom:
         read_data = rom.read()
 
-    (buffer, window) = app_pyglet.initialize()
+    ch8_display = Chip8Window()
     regs = init_registers()
 
-    buffer.append((1,1))
-    buffer.append((2,2))
-    buffer.append((2,3))
     get_font(regs.ram)
 
-    # used to keep track which bits are on or OFF
-    display = [[False] * window.height] * window.width
-
     # load data in ram
-    i = 0x200
+    i = PROGRAM_COUNTER_START
     for byte in read_data:
         regs.ram[i] = byte
         i += 1
 
-    for i in range(0x200, 0x220, 0x2):
-        # debug
-        # joining bytes for a full 2-byte instruction
-        instruc = (regs.ram[i] << 0x8) + (regs.ram[i+1])
-        print(f"{instruc:04X}")
-
     regs.pc = PROGRAM_COUNTER_START
 
     def FDE(dt):
-        nonlocal regs, buffer, display
+        """Fetch, Decode, and Execute"""
+        nonlocal regs, ch8_display
 
         # fetch
         # combining bytes for a full 2-byte instruction
@@ -58,15 +48,14 @@ def run():
         regs.pc += 2
 
         # decode
-        decode(instruc, regs, buffer, display)
+        decode(instruc, regs, ch8_display)
 
-    pyglet.clock.schedule_interval(FDE, 0.5)
+    pyglet.clock.schedule_interval(FDE, 0.1)
     pyglet.app.run()
 
 def decode(instruc: int,
            regs: Registers,
-           buffer: list[tuple],
-           display: list[bool]):
+           ch8_display: Chip8Window):
     (x, y, n, kk, nnn) = extract_nibbles(instruc)
     type = instruc & 0xF000
 
@@ -74,12 +63,12 @@ def decode(instruc: int,
     match type:
         case 0x0000:
             print("CLS")
-            CLS(display)
+            CLS(ch8_display)
         case 0x1000:
-            print("1nnn JP addr")
+            print("1nnn - JP addr")
             regs.pc = nnn
         case 0x2000:
-            print("2nnn CALL addr")
+            print("2nnn - CALL addr")
             regs.stack.push(regs.pc)
             regs.pc = nnn
         case 0x6000:
@@ -93,9 +82,9 @@ def decode(instruc: int,
             regs.index = nnn
         case 0xD000:
             print("DXYN - Vx, Vy, nibble")
-            DRW(x, y, n, buffer, display, regs)
+            DRW(x, y, n, ch8_display, regs)
 
-def DRW(x, y, n, buffer: list, display: list, regs: Registers):
+def DRW(x, y, n, ch8_display, regs: Registers):
     """The behemoth DRAW instruction
     Display n-byte sprite starting at memory location I at (Vx, Vy),
     set VF = collision.
@@ -106,33 +95,37 @@ def DRW(x, y, n, buffer: list, display: list, regs: Registers):
     for byte_n in range(n):
         mask = 0b1000_0000
         for bit in range(8):
-            x_cord = x_cord % app_pyglet.DISPLAY_WIDTH
-            y_cord = y_cord % app_pyglet.DISPLAY_HEIGHT
+            x_cord = x_cord % ch8window.DISPLAY_WIDTH
+            y_cord = y_cord % ch8window.DISPLAY_HEIGHT
 
             line_copy = regs.ram[sprite_index + byte_n]
             is_bit_on = line_copy & mask
 
-            draw_bit(is_bit_on, buffer, display, x_cord, y_cord, regs)
+            regs.v[0xF] = draw_bit(is_bit_on, ch8_display, x_cord, y_cord)
 
             mask = mask >> 1
             x_cord += 1
         x_cord -= 8
         y_cord += 1
 
-def draw_bit(is_bit_on, buffer, display, x_cord, y_cord, regs):
+def draw_bit(is_bit_on, ch8_display: Chip8Window, x_cord, y_cord):
+    """helper function of DRW, handles drawing exactly 1 bit
+    also returns 1 or 0 if it erased a pixel or not, respectivelly."""
+    buffer = ch8_display.buffer
+    is_pixel_on = ch8_display.is_pixel_on
+
     if is_bit_on > 0:
         buffer.append((x_cord, y_cord))
-        if display[x_cord][y_cord]:
-            regs.v[0xF] = 1
-            display[x_cord][y_cord] = False
+        if is_pixel_on[x_cord][y_cord]:
+            is_pixel_on[x_cord][y_cord] = False
+            return 1
         else:
-            regs.v[0xF] = 0
-            display[x_cord][y_cord] = True
+            is_pixel_on[x_cord][y_cord] = True
+            return 0
 
 
-def CLS(display: list[bool]):
-    app_pyglet.clear_screen()
-    display = [False for _ in range(len(display))]
+def CLS(ch8_display: Chip8Window):
+    ch8_display.clear_screen()
 
 def extract_nibbles(instruc):
     x   = (instruc & 0x0F00) >> 8
