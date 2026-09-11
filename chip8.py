@@ -1,6 +1,7 @@
 import ch8window
 import pyglet
 import font
+import time
 from random import random
 from ch8window import Chip8Window
 from dataclasses import dataclass 
@@ -33,32 +34,39 @@ def run():
         regs.ram[i] = byte
         i += 1
 
+    buzz = pyglet.media.synthesis.Triangle(1/10)
+
     regs.pc = PROGRAM_COUNTER_START
 
-    pyglet.clock.schedule_interval(main_loop, 1/60, regs, ch8_display)
+    #regs.ram[0x1FF] = 1
+
+    pyglet.clock.schedule_interval(main_loop, 1/60, regs, ch8_display, buzz)
     pyglet.app.run()
 
-IPF = 15
+IPF = 16
 
-def main_loop(dt, regs: Registers, ch8_display: Chip8Window):
+def main_loop(dt, regs: Registers, ch8_display: Chip8Window, buzz):
+    if regs.sound_timer:
+        buzz.play()
     regs.delay_timer -= 1 if regs.delay_timer > 0 else 0
     regs.sound_timer -= 1 if regs.sound_timer > 0 else 0
-    for n in range(IPF):
+
+    for _ in range(IPF):
         FDE(regs, ch8_display)
 
-
+    ch8_display.refresh()
+    ch8_display.buffer.clear()
 
 def FDE(regs: Registers, ch8_display: Chip8Window):
     """Fetch, Decode, and Execute"""
-    if ch8_display.display_wait:
-        return
+    if ch8_display.display_wait: return
 
     # fetch
     # combining bytes for a full 2-byte instruction
     instruc = (regs.ram[regs.pc] << 0x8) + (regs.ram[regs.pc+1])
 
     # debug
-    print(f"\n{instruc:04X}")
+    #print(f"\n{instruc:04X}")
 
     regs.pc += 2
 
@@ -80,17 +88,16 @@ def decode(instruc: int,
     match type:
         case 0x0000:
             if other_types == 0x00E0:
-                print("CLS")
                 CLS(ch8_display)
             elif other_types == 0x00EE:
-                print("Return")
                 address = regs.stack.pop()
                 regs.pc = address
+            else:
+                print("not an instruction")
+                regs.pc -= 2
         case 0x1000:
-            print("1nnn - JP addr")
             regs.pc = nnn
         case 0x2000:
-            print("2nnn - CALL addr")
             regs.stack.append(regs.pc)
             regs.pc = nnn
         case 0x3000:
@@ -103,41 +110,36 @@ def decode(instruc: int,
             if regs.v[x] == regs.v[y]:
                 regs.pc += 2
         case 0x6000:
-            print("6XKK - LD Vx, byte")
             regs.v[x] = kk
         case 0x7000:
-            print("7XKK - ADD Vx, byte")
             regs.v[x] += kk
             regs.v[x] = regs.v[x] & 0x00FF
         case 0x8000:
             op_8XYT(regs, logical_type, x, y)
         case 0x9000:
-            print("SNE Vx, Vy")
             if regs.v[x] != regs.v[y]:
                 regs.pc += 2
         case 0xA000:
-            print("ANNN - LD I, addr")
             regs.index = nnn
         case 0xB000:
             regs.pc = regs.v[0x0] + nnn
         case 0xC000:
             regs.v[x] = kk & int(random() * 0xFFFF)
         case 0xD000:
-            # TODO implement "display wait" quirk
-            print("DXYN - Vx, Vy, nibble")
-            DRW(x, y, n, ch8_display, regs)
             ch8_display.display_wait = True
+            DRW(x, y, n, ch8_display, regs)
         case 0xE000:
             if other_types == 0x009E:
-                print("Ex9E")
                 key = regs.v[x] & 0x000F
                 regs.pc += 2 if ch8_display.keys_pressed[key] else 0
             elif other_types == 0x00A1:
-                print("Ex9E")
                 key = regs.v[x] & 0x000F
                 regs.pc += 2 if not ch8_display.keys_pressed[key] else 0
         case 0xF000:
             op_FXTT(x, regs, other_types, ch8_display)
+        case _:
+            pass
+
 
 def op_FXTT(x, regs: Registers, types: int, ch8_display: Chip8Window):
     match types:
@@ -180,22 +182,17 @@ def op_8XYT(regs: Registers, type, x, y):
     v = regs.v
     match type:
         case 0x0000:
-            print("8xy0 - LD Vx, Vy")
             v[x] = v[y]
         case 0x0001:
-            print("8xy1 - OR Vx, Vy")
+            v[0xF] = 0
             v[x] = v[x] | v[y]
-            v[0xF] = 0
         case 0x0002:
-            print("8xy2 - AND Vx, Vy")
+            v[0xF] = 0
             v[x] = v[x] & v[y]
-            v[0xF] = 0
         case 0x0003:
-            print("8xy3 - XOR Vx, Vy")
-            v[x] = v[x] ^ v[y]
             v[0xF] = 0
+            v[x] = v[x] ^ v[y]
         case 0x0004:
-            print("8xy4 - ADD Vx, Vy")
             x_plus_y = regs.v[x] + regs.v[y]
             if x_plus_y > 2**8 - 1:
                 v[x] = x_plus_y - 2**8
@@ -204,7 +201,6 @@ def op_8XYT(regs: Registers, type, x, y):
 
             v[0xF] = 1 if x_plus_y > 0x00FF else 0
         case 0x0005:
-            print("8xy5 - SUB Vx, Vy")
             vx = v[x]
             vy = v[y]
             v[x] = vx - vy
@@ -215,13 +211,11 @@ def op_8XYT(regs: Registers, type, x, y):
                 v[x] += 2**8
                 v[0xF] = 0
         case 0x0006:
-            print("SHR Vx {, Vy}")
             v[x] = v[y]
             vx = v[x]
             v[x] = (v[x] >> 1) & 0b1111_1111
             v[0xF] = 1 if (vx & 0b0000_0001) > 0 else 0
         case 0x0007:
-            print("SUBN Vx, Vy")
             vx = v[x]
             vy = v[y]
             v[x] = vy - vx
@@ -233,7 +227,6 @@ def op_8XYT(regs: Registers, type, x, y):
 
                 v[0xF] = 0
         case 0x000E:
-            print("SHL Vx {, Vy}")
             v[x] = v[y]
             vx = v[x]
             # masking and setting the value to avoid values bigger than a byte
@@ -245,53 +238,50 @@ def op_8XYT(regs: Registers, type, x, y):
 def DRW(x, y, n, ch8_display, regs: Registers):
     """The behemoth DRAW instruction
     Display n-byte sprite starting at memory location I at (Vx, Vy),
-    set VF = collision.
-    """
+    set VF = collision.  """
     sprite_index = regs.index
     x_anchor = regs.v[x] % ch8window.DISPLAY_WIDTH
     y_anchor = regs.v[y] % ch8window.DISPLAY_HEIGHT
     regs.v[0xF] = 0
 
     # wrap around starting positions
-    x_cord = x_anchor
-    y_cord = y_anchor
+    x = x_anchor
+    y = y_anchor
 
     for byte_n in range(n):
-        y_cord = byte_n + y_anchor
-        x_cord = x_anchor
+        x = x_anchor
         mask = 0b1000_0000
         line_copy = regs.ram[sprite_index + byte_n]
         for _ in range(8):
-            # clip if cordinate is out of screen
-            if x_cord >= ch8window.DISPLAY_WIDTH:
-                continue
-            if y_cord >= ch8window.DISPLAY_HEIGHT:
-                continue
-
             is_bit_on = line_copy & mask
-            is_collision = draw_bit(is_bit_on, ch8_display, x_cord, y_cord)
-            regs.v[0xF] = is_collision
+            is_collision = draw_bit(is_bit_on, ch8_display, x, y)
+            if is_collision:
+                regs.v[0xF] = 1
 
             mask = mask >> 1
-            x_cord += 1
+            x += 1
+            # clip if cordinate is out of screen
+            if x >= ch8window.DISPLAY_WIDTH:
+                break
+        y += 1
+        # clip if cordinate is out of screen
+        if y >= ch8window.DISPLAY_HEIGHT:
+            return
 
-def draw_bit(is_bit_on, ch8_display: Chip8Window, x_cord, y_cord):
+def draw_bit(is_bit_on, ch8_display: Chip8Window, x, y):
     """helper function of DRW, handles drawing exactly 1 bit
     also returns 1 or 0 if it erased a pixel or not, respectivelly."""
     buffer = ch8_display.buffer
     is_pixel_on = ch8_display.is_pixel_on
 
-    if is_bit_on > 0 and not (x_cord, y_cord) in buffer:
-        buffer.add((x_cord, y_cord))
-        if is_pixel_on[x_cord][y_cord]:
-            is_pixel_on[x_cord][y_cord] = False
-            return 1
-        else:
-            is_pixel_on[x_cord][y_cord] = True
-            return 0
-
-    # don't forget the still return zero even if a pixel was not drawn!
-    return 0
+    if is_bit_on:
+        buffer.add((x, y))
+        if is_pixel_on[x][y]:
+            is_pixel_on[x][y] = False
+            return True
+        is_pixel_on[x][y] = True
+    # return zero even if a pixel was not drawn
+    return False
 
 
 def CLS(ch8_display: Chip8Window):

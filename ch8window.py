@@ -4,7 +4,7 @@ from font import map_key
 
 pyglet.image.Texture.default_mag_filter = pyglet.gl.GL_NEAREST
 
-SCALE = 20
+SCALE = 15
 DISPLAY_WIDTH = 64
 DISPLAY_HEIGHT = 32
 BLACK_BYTE = 0
@@ -20,7 +20,7 @@ class Chip8Window(pyglet.window.Window):
 
         # a touple list of x, y values
         # which represent fliped-on bits on the memory buffer
-        self.buffer = []
+        self.buffer = set()
 
         # used to keep track which bits are on or OFF
         self.is_pixel_on = [[False] * DISPLAY_HEIGHT] * DISPLAY_WIDTH
@@ -37,6 +37,8 @@ class Chip8Window(pyglet.window.Window):
         self.keys_pressed = [False] * 16
         self.last_key_released = None
 
+        self.display_wait = False
+
         self.debug_grid = False
         if DEBUG_REFRESH:
             self.i = 0
@@ -44,10 +46,11 @@ class Chip8Window(pyglet.window.Window):
             pyglet.clock.schedule_interval(
                 self.debug_fill_display, 1/240, self)
 
-    def on_draw(self):
+    def refresh(self):
+        self.display_wait = False
         self.clear()
         self.update_pixels()
-        self.buffer.clear()
+        self.last_key_released = None
 
         sprite = pyglet.sprite.Sprite(self.image_data, batch=self.batch)
         sprite.scale = SCALE
@@ -117,7 +120,7 @@ class Chip8Window(pyglet.window.Window):
         print("pressed:", symbol)
 
         key_index = map_key(symbol)
-        if key_index:
+        if key_index or key_index == 0x0:
             self.keys_pressed[key_index] = True
 
         # debug grid flip switch
@@ -130,7 +133,7 @@ class Chip8Window(pyglet.window.Window):
 
     def on_key_release(self, symbol, modifiers):
         key_index = map_key(symbol)
-        if key_index:
+        if key_index or key_index == 0x0:
             self.keys_pressed[key_index] = False
 
         self.last_key_released = key_index
