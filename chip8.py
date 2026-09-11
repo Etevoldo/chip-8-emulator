@@ -58,6 +58,8 @@ def decode(instruc: int,
            ch8_display: Chip8Window):
     (x, y, n, kk, nnn) = extract_nibbles(instruc)
     type = instruc & 0xF000
+    # for 8VX_ instructions
+    logical_type = instruc & 0x000F
 
     # ... and execute
     match type:
@@ -71,12 +73,23 @@ def decode(instruc: int,
             print("2nnn - CALL addr")
             regs.stack.push(regs.pc)
             regs.pc = nnn
+        case 0x3000:
+            if regs.v[x] == kk:
+                regs.pc += 2
+        case 0x4000:
+            if regs.v[x] != kk:
+                regs.pc += 2
+        case 0x5000:
+            if regs.v[x] == regs.v[y]:
+                regs.pc += 2
         case 0x6000:
-            print("6xkk - LD Vx, byte")
+            print("6XKK - LD Vx, byte")
             regs.v[x] = kk
         case 0x7000:
-            print("7xkk - ADD Vx, byte")
+            print("7XKK - ADD Vx, byte")
             regs.v[x] += kk
+        case 0x8000:
+            logical_instructions(regs, logical_type, x, y)
         case 0xA000:
             print("ANNN - LD I, addr")
             regs.index = nnn
@@ -84,19 +97,72 @@ def decode(instruc: int,
             print("DXYN - Vx, Vy, nibble")
             DRW(x, y, n, ch8_display, regs)
 
+def logical_instructions(regs, type, x, y):
+    v = regs.v
+    match type:
+        case 0x0000:
+            print("8xy0 - LD Vx, Vy")
+            v[x] = v[y]
+        case 0x0001:
+            print("8xy1 - OR Vx, Vy")
+            v[x] = v[x] | v[y]
+        case 0x0002:
+            print("8xy2 - AND Vx, Vy")
+            v[x] = v[x] & v[y]
+        case 0x0003:
+            print("8xy3 - XOR Vx, Vy")
+            v[x] = v[x] ^ v[y]
+        case 0x0004:
+            print("8xy4 - ADD Vx, Vy")
+            x_plus_y = v[x] + v[y]
+            v[x] = x_plus_y & 0x00FF
+
+            v[0xF] = 1 if x_plus_y > 0x00FF else 0
+        case 0x0005:
+            print("8xy5 - SUB Vx, Vy")
+            v[x] = v[x] - v[y]
+
+            v[0xF] = 1 if v[x] >= v[y] else 0
+        case 0x0006:
+            print("SHR Vx {, Vy}")
+            v[x] = v[y]
+            v[0xF] = 1 if (v[x] & 0b0000_0001) > 0 else 0
+            v[x] = v[x] >> 1
+        case 0x0007:
+            print("SUBN Vx, Vy")
+            v[x] = v[x] - v[y]
+
+            v[0xF] = 0 if v[x] >= v[y] else 1
+        case 0x000E:
+            print("SHL Vx {, Vy}")
+            v[x] = v[y]
+            v[0xF] = 1 if (v[x] & 0b1000_0000) > 0 else 0
+            v[x] = v[x] << 1
+
+
+
+
 def DRW(x, y, n, ch8_display, regs: Registers):
     """The behemoth DRAW instruction
     Display n-byte sprite starting at memory location I at (Vx, Vy),
     set VF = collision.
     """
     sprite_index = regs.index
-    x_cord = regs.v[x]
-    y_cord = regs.v[y]
+    x_anchor = regs.v[x]
+    y_anchor = regs.v[y]
+
+    # wrap around starting positions
+    x_cord = x_anchor % ch8window.DISPLAY_WIDTH
+    y_cord = y_anchor % ch8window.DISPLAY_HEIGHT
+
     for byte_n in range(n):
         mask = 0b1000_0000
         for bit in range(8):
-            x_cord = x_cord % ch8window.DISPLAY_WIDTH
-            y_cord = y_cord % ch8window.DISPLAY_HEIGHT
+            # clip if cordinate is out of screen
+            if x_cord > ch8window.DISPLAY_WIDTH:
+                continue
+            if y_cord > ch8window.DISPLAY_HEIGHT:
+                continue
 
             line_copy = regs.ram[sprite_index + byte_n]
             is_bit_on = line_copy & mask
@@ -105,7 +171,7 @@ def DRW(x, y, n, ch8_display, regs: Registers):
 
             mask = mask >> 1
             x_cord += 1
-        x_cord -= 8
+        x_cord = x_anchor % ch8window.DISPLAY_WIDTH
         y_cord += 1
 
 def draw_bit(is_bit_on, ch8_display: Chip8Window, x_cord, y_cord):
