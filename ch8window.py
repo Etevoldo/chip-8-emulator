@@ -33,9 +33,10 @@ class Chip8Window(pyglet.window.Window):
             (ctypes.c_ubyte * (DISPLAY_WIDTH * DISPLAY_HEIGHT))(),
             DISPLAY_WIDTH)
 
-        self.keys_pressed = [False] * 0xF
+        self.keys_pressed = [False] * 16
+        self.last_key_released = None
 
-        self.debug_grid = True
+        self.debug_grid = False
         if DEBUG_REFRESH:
             self.i = 0
             self.j = 0
