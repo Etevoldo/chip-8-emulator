@@ -20,9 +20,12 @@ class Registers:
 
 def run():
     read_data = None
-    rom_name = './roms/Space Invaders [David Winter] (alt).ch8'
-    if len(sys.argv) > 1:
-        rom_name = sys.argv[1]
+    rom_name = None
+    if len(sys.argv) < 1:
+        print("Missing rom file argument")
+
+    rom_name = sys.argv[1]
+
     with open(rom_name, 'rb') as rom:
         read_data = rom.read()
 
