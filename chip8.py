@@ -35,19 +35,23 @@ def run():
 
     regs.pc = PROGRAM_COUNTER_START
 
-
-    pyglet.clock.schedule_interval(main_loop, 0.01, regs, ch8_display)
+    pyglet.clock.schedule_interval(main_loop, 1/60, regs, ch8_display)
     pyglet.app.run()
+
+IPF = 15
 
 def main_loop(dt, regs: Registers, ch8_display: Chip8Window):
     regs.delay_timer -= 1 if regs.delay_timer > 0 else 0
     regs.sound_timer -= 1 if regs.sound_timer > 0 else 0
-    FDE(regs, ch8_display)
+    for n in range(IPF):
+        FDE(regs, ch8_display)
+
 
 
 def FDE(regs: Registers, ch8_display: Chip8Window):
     """Fetch, Decode, and Execute"""
-    #nonlocal regs, ch8_display
+    if ch8_display.display_wait:
+        return
 
     # fetch
     # combining bytes for a full 2-byte instruction
@@ -122,6 +126,7 @@ def decode(instruc: int,
             # TODO implement "display wait" quirk
             print("DXYN - Vx, Vy, nibble")
             DRW(x, y, n, ch8_display, regs)
+            ch8_display.display_wait = True
         case 0xE000:
             if other_types == 0x009E:
                 print("Ex9E")
@@ -164,12 +169,14 @@ def op_FXTT(x, regs: Registers, types: int, ch8_display: Chip8Window):
         case 0x0055:
             for j in range(x+1):
                 regs.ram[regs.index + j] = regs.v[j]
+            regs.index += x + 1
         case 0x0065:
             for j in range(x+1):
                 regs.v[j] = regs.ram[regs.index + j]
+            regs.index += x + 1
 
 
-def op_8XYT(regs, type, x, y):
+def op_8XYT(regs: Registers, type, x, y):
     v = regs.v
     match type:
         case 0x0000:
@@ -178,15 +185,18 @@ def op_8XYT(regs, type, x, y):
         case 0x0001:
             print("8xy1 - OR Vx, Vy")
             v[x] = v[x] | v[y]
+            v[0xF] = 0
         case 0x0002:
             print("8xy2 - AND Vx, Vy")
             v[x] = v[x] & v[y]
+            v[0xF] = 0
         case 0x0003:
             print("8xy3 - XOR Vx, Vy")
             v[x] = v[x] ^ v[y]
+            v[0xF] = 0
         case 0x0004:
             print("8xy4 - ADD Vx, Vy")
-            x_plus_y = v[x] + v[y]
+            x_plus_y = regs.v[x] + regs.v[y]
             if x_plus_y > 2**8 - 1:
                 v[x] = x_plus_y - 2**8
             else:
@@ -238,31 +248,32 @@ def DRW(x, y, n, ch8_display, regs: Registers):
     set VF = collision.
     """
     sprite_index = regs.index
-    x_anchor = regs.v[x]
-    y_anchor = regs.v[y]
+    x_anchor = regs.v[x] % ch8window.DISPLAY_WIDTH
+    y_anchor = regs.v[y] % ch8window.DISPLAY_HEIGHT
+    regs.v[0xF] = 0
 
     # wrap around starting positions
-    x_cord = x_anchor % ch8window.DISPLAY_WIDTH
-    y_cord = y_anchor % ch8window.DISPLAY_HEIGHT
+    x_cord = x_anchor
+    y_cord = y_anchor
 
     for byte_n in range(n):
+        y_cord = byte_n + y_anchor
+        x_cord = x_anchor
         mask = 0b1000_0000
+        line_copy = regs.ram[sprite_index + byte_n]
         for _ in range(8):
             # clip if cordinate is out of screen
-            if x_cord > ch8window.DISPLAY_WIDTH:
+            if x_cord >= ch8window.DISPLAY_WIDTH:
                 continue
-            if y_cord > ch8window.DISPLAY_HEIGHT:
+            if y_cord >= ch8window.DISPLAY_HEIGHT:
                 continue
 
-            line_copy = regs.ram[sprite_index + byte_n]
             is_bit_on = line_copy & mask
-
-            regs.v[0xF] = draw_bit(is_bit_on, ch8_display, x_cord, y_cord)
+            is_collision = draw_bit(is_bit_on, ch8_display, x_cord, y_cord)
+            regs.v[0xF] = is_collision
 
             mask = mask >> 1
             x_cord += 1
-        x_cord = x_anchor % ch8window.DISPLAY_WIDTH
-        y_cord += 1
 
 def draw_bit(is_bit_on, ch8_display: Chip8Window, x_cord, y_cord):
     """helper function of DRW, handles drawing exactly 1 bit
@@ -270,14 +281,17 @@ def draw_bit(is_bit_on, ch8_display: Chip8Window, x_cord, y_cord):
     buffer = ch8_display.buffer
     is_pixel_on = ch8_display.is_pixel_on
 
-    if is_bit_on > 0:
-        buffer.append((x_cord, y_cord))
+    if is_bit_on > 0 and not (x_cord, y_cord) in buffer:
+        buffer.add((x_cord, y_cord))
         if is_pixel_on[x_cord][y_cord]:
             is_pixel_on[x_cord][y_cord] = False
             return 1
         else:
             is_pixel_on[x_cord][y_cord] = True
             return 0
+
+    # don't forget the still return zero even if a pixel was not drawn!
+    return 0
 
 
 def CLS(ch8_display: Chip8Window):
