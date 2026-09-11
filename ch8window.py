@@ -22,9 +22,6 @@ class Chip8Window(pyglet.window.Window):
         # which represent fliped-on bits on the memory buffer
         self.buffer = set()
 
-        # used to keep track which bits are on or OFF
-        self.is_pixel_on = [[False] * DISPLAY_HEIGHT] * DISPLAY_WIDTH
-
         self.batch = pyglet.graphics.Batch()
 
         self.image_data = pyglet.image.ImageData(
@@ -139,7 +136,6 @@ class Chip8Window(pyglet.window.Window):
         self.last_key_released = key_index
 
     def clear_screen(self):
-        self.is_pixel_on = [[False] * DISPLAY_HEIGHT] * DISPLAY_WIDTH
         empty_bytes = (
             ctypes.c_ubyte * (DISPLAY_WIDTH * DISPLAY_HEIGHT))()
         self.image_data.set_bytes("L", DISPLAY_WIDTH, empty_bytes)

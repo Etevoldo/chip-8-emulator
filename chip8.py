@@ -20,7 +20,7 @@ class Registers:
 
 def run():
     read_data = None
-    with open('./roms/5-quirks.ch8', 'rb') as rom:
+    with open('./roms/Space Invaders [David Winter] (alt).ch8', 'rb') as rom:
         read_data = rom.read()
 
     ch8_display = Chip8Window()
@@ -43,7 +43,7 @@ def run():
     pyglet.clock.schedule_interval(main_loop, 1/60, regs, ch8_display, buzz)
     pyglet.app.run()
 
-IPF = 16
+IPF = 13
 
 def main_loop(dt, regs: Registers, ch8_display: Chip8Window, buzz):
     if regs.sound_timer:
@@ -272,16 +272,20 @@ def draw_bit(is_bit_on, ch8_display: Chip8Window, x, y):
     """helper function of DRW, handles drawing exactly 1 bit
     also returns 1 or 0 if it erased a pixel or not, respectivelly."""
     buffer = ch8_display.buffer
-    is_pixel_on = ch8_display.is_pixel_on
+
+    byte_list = ch8_display.image_data.get_bytes()
+
+    inverted_y = ch8window.DISPLAY_HEIGHT - y - 1
+    index = x + inverted_y * ch8window.DISPLAY_WIDTH
+
+    iscollision = False
 
     if is_bit_on:
         buffer.add((x, y))
-        if is_pixel_on[x][y]:
-            is_pixel_on[x][y] = False
-            return True
-        is_pixel_on[x][y] = True
-    # return zero even if a pixel was not drawn
-    return False
+        if byte_list[index]:
+            iscollision = True
+
+    return iscollision
 
 
 def CLS(ch8_display: Chip8Window):
