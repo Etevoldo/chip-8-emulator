@@ -1,3 +1,5 @@
+FONT_START = 0x050
+
 def get_font(ram):
     font = [
         0xF0, 0x90, 0x90, 0x90, 0xF0, # 0
@@ -17,9 +19,30 @@ def get_font(ram):
         0xF0, 0x80, 0xF0, 0x80, 0xF0, # E
         0xF0, 0x80, 0xF0, 0x80, 0x80] # F
 
-    FONT_START = 0x050
     i = FONT_START
     for byte in font:
         ram[i] = byte
         i += 1
     return
+
+def map_key(symbol):
+    """returns the correct index of the is_pressed list
+    valid only for QWERTY keyboards """
+    from pyglet.window import key
+    match symbol:
+        case key._1: return 0x1
+        case key._2: return 0x2
+        case key._3: return 0x3
+        case key._4: return 0xC
+        case key.Q:  return 0x4
+        case key.W:  return 0x5
+        case key.E:  return 0x6
+        case key.R:  return 0xD
+        case key.A:  return 0x7
+        case key.S:  return 0x8
+        case key.D:  return 0x9
+        case key.F:  return 0xE
+        case key.Z:  return 0xA
+        case key.X:  return 0x0
+        case key.C:  return 0xB
+        case key.V:  return 0xF
