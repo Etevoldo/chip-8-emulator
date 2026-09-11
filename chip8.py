@@ -1,7 +1,7 @@
 import ch8window
 import pyglet
 import font
-import time
+import sys
 from random import random
 from ch8window import Chip8Window
 from dataclasses import dataclass 
@@ -20,7 +20,10 @@ class Registers:
 
 def run():
     read_data = None
-    with open('./roms/Space Invaders [David Winter] (alt).ch8', 'rb') as rom:
+    rom_name = './roms/Space Invaders [David Winter] (alt).ch8'
+    if len(sys.argv) > 1:
+        rom_name = sys.argv[1]
+    with open(rom_name, 'rb') as rom:
         read_data = rom.read()
 
     ch8_display = Chip8Window()
@@ -34,7 +37,7 @@ def run():
         regs.ram[i] = byte
         i += 1
 
-    buzz = pyglet.media.synthesis.Triangle(1/10)
+    buzz = pyglet.media.synthesis.Triangle(1/20)
 
     regs.pc = PROGRAM_COUNTER_START
 
@@ -43,7 +46,7 @@ def run():
     pyglet.clock.schedule_interval(main_loop, 1/60, regs, ch8_display, buzz)
     pyglet.app.run()
 
-IPF = 13
+IPF = 15
 
 def main_loop(dt, regs: Registers, ch8_display: Chip8Window, buzz):
     if regs.sound_timer:
@@ -184,14 +187,14 @@ def op_8XYT(regs: Registers, type, x, y):
         case 0x0000:
             v[x] = v[y]
         case 0x0001:
-            v[0xF] = 0
             v[x] = v[x] | v[y]
+            v[0xF] = 0
         case 0x0002:
-            v[0xF] = 0
             v[x] = v[x] & v[y]
-        case 0x0003:
             v[0xF] = 0
+        case 0x0003:
             v[x] = v[x] ^ v[y]
+            v[0xF] = 0
         case 0x0004:
             x_plus_y = regs.v[x] + regs.v[y]
             if x_plus_y > 2**8 - 1:
@@ -211,7 +214,8 @@ def op_8XYT(regs: Registers, type, x, y):
                 v[x] += 2**8
                 v[0xF] = 0
         case 0x0006:
-            v[x] = v[y]
+            # Ambiguous one
+            # v[x] = v[y] # comment for SUPER-CHIP/CHIP-48
             vx = v[x]
             v[x] = (v[x] >> 1) & 0b1111_1111
             v[0xF] = 1 if (vx & 0b0000_0001) > 0 else 0

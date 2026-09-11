@@ -102,7 +102,7 @@ class Chip8Window(pyglet.window.Window):
         # necessary to not be garbage-collected
         batch.draw()
 
-    def on_mouse_press(self, x, y, button, mods):
+    def OFF_on_mouse_press(self, x, y, button, mods):
         """Debug only: puts on the buffer clicked location"""
         print(f"mouse pressed on: ({x}, {y})")
         x = int(x // SCALE)
