@@ -1,5 +1,6 @@
 import pyglet
 import ctypes
+from font import map_key
 
 pyglet.image.Texture.default_mag_filter = pyglet.gl.GL_NEAREST
 
@@ -115,7 +116,7 @@ class Chip8Window(pyglet.window.Window):
     def on_key_press(self, symbol, modifiers):
         print("pressed:", symbol)
 
-        key_index = self.map_key(symbol)
+        key_index = map_key(symbol)
         if key_index:
             self.keys_pressed[key_index] = True
 
@@ -128,33 +129,11 @@ class Chip8Window(pyglet.window.Window):
             return
 
     def on_key_release(self, symbol, modifiers):
-        key_index = self.map_key(symbol)
+        key_index = map_key(symbol)
         if key_index:
             self.keys_pressed[key_index] = False
-        pass
 
-    def map_key(self, symbol):
-        """returns the correct index of the is_pressed list
-        valid only for QWERTY keyboards """
-        from pyglet.window import key
-        match symbol:
-            case key._1: return 0x1
-            case key._2: return 0x2
-            case key._3: return 0x3
-            case key._4: return 0xC
-            case key.Q:  return 0x4
-            case key.W:  return 0x5
-            case key.E:  return 0x6
-            case key.R:  return 0xD
-            case key.A:  return 0x7
-            case key.S:  return 0x8
-            case key.D:  return 0x9
-            case key.F:  return 0xE
-            case key.Z:  return 0xA
-            case key.X:  return 0x0
-            case key.C:  return 0xB
-            case key.V:  return 0xF
-
+        self.last_key_released = key_index
 
     def clear_screen(self):
         self.is_pixel_on = [[False] * DISPLAY_HEIGHT] * DISPLAY_WIDTH
