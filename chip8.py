@@ -21,9 +21,9 @@ class Registers:
 def run():
     read_data = None
     rom_name = None
-    if len(sys.argv) < 1:
+    if len(sys.argv) <= 1:
         print("Missing rom file argument")
-
+        return
     rom_name = sys.argv[1]
 
     with open(rom_name, 'rb') as rom:
