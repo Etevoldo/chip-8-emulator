@@ -100,7 +100,6 @@ def decode(instruc: int,
                 regs.pc = address
             else:
                 print("not an instruction")
-                regs.pc -= 2
         case 0x1000:
             regs.pc = nnn
         case 0x2000:
