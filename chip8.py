@@ -162,8 +162,8 @@ def op_FXTT(x, regs: Registers, types: int, ch8_display: Chip8Window):
         case 0x001E:
             regs.index += regs.v[x]
         case 0x0029:
-            last_nibble = regs.v[x] & 0x000F
-            regs.index = regs.ram[font.FONT_START + last_nibble]
+            last_nibble = regs.v[x] & 0x0F
+            regs.index = font.FONT_START + (last_nibble * 5)
         case 0x0033:
             number = regs.v[x]
             digits = []
