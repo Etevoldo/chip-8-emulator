@@ -7,7 +7,7 @@ import random
 
 def FDE(regs: Registers, ch8_display: Chip8Window):
     """Fetch, Decode, and Execute"""
-    if ch8_display.display_wait: return
+    #if ch8_display.display_wait: return
 
     # fetch
     # combining bytes for a full 2-byte instruction
@@ -217,6 +217,7 @@ def DXYN(x, y, n, ch8_display: Chip8Window, regs: Registers):
             break
 
     ch8_display.update_pixels()
+    ch8_display.buffer.clear()
 
 def extract_nibbles(instruc):
     x   = (instruc & 0x0F00) >> 8
