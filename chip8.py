@@ -48,7 +48,7 @@ def run():
     pyglet.clock.schedule_interval(main_loop, 1/60, regs, ch8_display, buzz)
     pyglet.app.run()
 
-IPF = 15
+IPF = 11
 
 def main_loop(dt, regs: Registers, ch8_display: Chip8Window, buzz):
     if regs.sound_timer:
