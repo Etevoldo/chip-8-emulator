@@ -73,6 +73,25 @@ class Chip8Window(pyglet.window.Window):
 
         self.image_data.set_bytes("L", DISPLAY_WIDTH, byte_list)
 
+    def draw_pixel(self, is_bit_on, x, y):
+        """helper function of DRW, handles drawing exactly 1 bit
+        also returns 1 or 0 if it erased a pixel or not, respectivelly."""
+        buffer = self.buffer
+
+        byte_list = self.image_data.get_bytes()
+
+        inverted_y = DISPLAY_HEIGHT - y - 1
+        index = x + inverted_y * DISPLAY_WIDTH
+
+        iscollision = False
+
+        if is_bit_on:
+            buffer.add((x, y))
+            if byte_list[index]:
+                iscollision = True
+
+        return iscollision
+
     def draw_grid(self):
         """draw grid for easier debugging the display"""
         batch = pyglet.graphics.Batch()
