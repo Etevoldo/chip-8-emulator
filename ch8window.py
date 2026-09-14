@@ -46,7 +46,6 @@ class Chip8Window(pyglet.window.Window):
     def refresh(self):
         self.display_wait = False
         self.clear()
-        self.update_pixels()
         self.last_key_released = None
 
         sprite = pyglet.sprite.Sprite(self.image_data, batch=self.batch)

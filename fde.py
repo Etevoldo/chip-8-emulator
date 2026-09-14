@@ -36,7 +36,7 @@ def decode(instruc: int,
     match type:
         case 0x0000:
             if other_types == 0x00E0:
-                CLS(ch8_display)
+                ch8_display.clear_screen()
             elif other_types == 0x00EE:
                 address = regs.stack.pop()
                 regs.pc = address
@@ -62,7 +62,7 @@ def decode(instruc: int,
             regs.v[x] += kk
             regs.v[x] = regs.v[x] & 0x00FF
         case 0x8000:
-            op_8XYT(regs, logical_type, x, y)
+            op_8XY(regs, logical_type, x, y)
         case 0x9000:
             if regs.v[x] != regs.v[y]:
                 regs.pc += 2
@@ -74,7 +74,7 @@ def decode(instruc: int,
             regs.v[x] = kk & int(random.random() * 0xFFFF)
         case 0xD000:
             ch8_display.display_wait = True
-            DRW(x, y, n, ch8_display, regs)
+            DXYN(x, y, n, ch8_display, regs)
         case 0xE000:
             if other_types == 0x009E:
                 key = regs.v[x] & 0x000F
@@ -83,12 +83,12 @@ def decode(instruc: int,
                 key = regs.v[x] & 0x000F
                 regs.pc += 2 if not ch8_display.keys_pressed[key] else 0
         case 0xF000:
-            op_FXTT(x, regs, other_types, ch8_display)
+            op_FX(x, regs, other_types, ch8_display)
         case _:
             pass
 
 
-def op_FXTT(x, regs: Registers, types: int, ch8_display: Chip8Window):
+def op_FX(x, regs: Registers, types: int, ch8_display: Chip8Window):
     match types:
         case 0x0007:
             regs.v[x] = regs.delay_timer
@@ -125,7 +125,7 @@ def op_FXTT(x, regs: Registers, types: int, ch8_display: Chip8Window):
             regs.index += x + 1
 
 
-def op_8XYT(regs: Registers, type, x, y):
+def op_8XY(regs: Registers, type, x, y):
     v = regs.v
     match type:
         case 0x0000:
@@ -183,7 +183,7 @@ def op_8XYT(regs: Registers, type, x, y):
             v[0xF] = 1 if (vx & 0b1000_0000) > 0 else 0
 
 
-def DRW(x, y, n, ch8_display: Chip8Window, regs: Registers):
+def DXYN(x, y, n, ch8_display: Chip8Window, regs: Registers):
     """The behemoth DRAW instruction
     Display n-byte sprite starting at memory location I at (Vx, Vy),
     set VF = collision.  """
@@ -214,11 +214,9 @@ def DRW(x, y, n, ch8_display: Chip8Window, regs: Registers):
         y += 1
         # clip if cordinate is out of screen
         if y >= ch8window.DISPLAY_HEIGHT:
-            return
+            break
 
-
-def CLS(ch8_display: Chip8Window):
-    ch8_display.clear_screen()
+    ch8_display.update_pixels()
 
 def extract_nibbles(instruc):
     x   = (instruc & 0x0F00) >> 8
